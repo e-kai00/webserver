@@ -1,5 +1,7 @@
 import socket
 import os
+import threading
+import time
 
 HOST = "127.0.0.1"
 PORT = 8080
@@ -10,13 +12,15 @@ WWW_ROOT = "www"
 def setup_server(host, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((host, port))
-    s.listen(1)
-    print(f"Server running on {HOST}: {PORT}...")
+    s.listen()
+    print(f"Server running on {host}: {port}...")
     return s
 
 
 def handle_request(conn):
     data = conn.recv(MAX_DATA_SIZE)
+    if not data: 
+        return
     request_line = data.split(b'\r\n')[0].decode()
     method, path, version = request_line.split()
     print(f"Request: {method} {path} {version}")
@@ -33,21 +37,29 @@ def handle_request(conn):
     conn.sendall(response.encode())
 
 
-def handle_connection(server_socket):
+def handle_connections(server_socket):
     while True:
         conn, addr = server_socket.accept()
-        print('Connected by', addr)
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
+        thread.start()
 
-        try:
-            handle_request(conn)
-        finally:
-            # close client socket
-            conn.close()
+
+def handle_client(conn, addr):
+    # handles one client connection
+    # each client will run in its own thread
+    print(f"Connected by {addr}, thread={threading.get_ident()}")
+
+    try:
+        time.sleep(5)
+        handle_request(conn)
+    finally:
+        conn.close()
+
 
 def main():
     server_socket = setup_server(HOST, PORT)
     try:
-        handle_connection(server_socket)
+        handle_connections(server_socket)
     finally:
          # close server socket
         server_socket.close()
